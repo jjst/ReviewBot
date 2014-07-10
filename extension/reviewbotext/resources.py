@@ -12,11 +12,12 @@ from reviewboard.diffviewer.models import FileDiff
 from reviewboard.reviews.models import BaseComment, Review
 from reviewboard.webapi.decorators import webapi_check_local_site
 from reviewboard.webapi.resources import WebAPIResource, resources
+from reviewboard.webapi.mixins import MarkdownFieldsMixin
 
 from reviewbotext.models import ReviewBotTool
 
 
-class ReviewBotReviewResource(WebAPIResource):
+class ReviewBotReviewResource(MarkdownFieldsMixin, WebAPIResource):
     """Resource for creating reviews with a single request.
 
     This resource allows Review Bot to create a full review using a single
@@ -61,7 +62,8 @@ class ReviewBotReviewResource(WebAPIResource):
         },
     )
     def create(self, request, review_request_id, ship_it=False, body_top='',
-               body_bottom='', diff_comments=None, *args, **kwargs):
+               body_bottom='', text_type=None, diff_comments=None,
+               *args, **kwargs):
         """Creates a new review and publishes it."""
         try:
             review_request = resources.review_request.get_object(
@@ -77,11 +79,15 @@ class ReviewBotReviewResource(WebAPIResource):
         if not body_bottom:
             body_bottom = ''
 
+        rich_text = (text_type is not None and
+                     text_type != self.TEXT_TYPE_PLAIN)
+
         new_review = Review.objects.create(
             review_request=review_request,
             user=request.user,
             body_top=body_top,
             body_bottom=body_bottom,
+            rich_text=rich_text,
             ship_it=ship_it)
 
         if diff_comments:
@@ -99,10 +105,13 @@ class ReviewBotReviewResource(WebAPIResource):
                         issue = False
                         issue_status = None
 
+                    rich_text = (comment.get('text_type', self.TEXT_TYPE_PLAIN)
+                                 != self.TEXT_TYPE_PLAIN)
                     new_review.comments.create(
                         filediff=filediff,
                         interfilediff=None,
                         text=comment['text'],
+                        rich_text=rich_text,
                         first_line=comment['first_line'],
                         num_lines=comment['num_lines'],
                         issue_opened=issue,
