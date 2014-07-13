@@ -78,6 +78,10 @@ def ProcessReviewRequest(payload, tool_settings):
         logger.error("Error executing tool: %s" % str(e))
         return False
 
+    if not t.processed_files:
+        logger.info("Tool didn't process any files, not posting review.")
+        return False
+
     try:
         logger.info("Publishing review")
         review.publish()
