@@ -13,6 +13,13 @@ class ReviewBotTool(models.Model):
     run_automatically = models.BooleanField(
         default=False,
         help_text=_("Run automatically when a review request is updated."))
+    reviews_to_skip = models.CharField(
+        max_length=512,
+        default="",
+        blank=True,
+        help_text=_("Review requests which have a description matching "
+                    "this Python regular expression will be skipped by "
+                    "this tool even if 'Run automatically' is enabled."))
     allow_run_manually = models.BooleanField(default=False)
     in_last_update = models.BooleanField()
     ship_it = models.BooleanField(

@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.contrib.auth import login
 from django.contrib.auth.models import User
@@ -7,13 +9,14 @@ from django.utils.importlib import import_module
 
 from celery import Celery
 from djblets.siteconfig.models import SiteConfiguration
+from reviewboard.reviews.models import ReviewRequest
 from reviewboard.extensions.base import Extension
 
 from reviewbotext.handlers import SignalHandlers
 from reviewbotext.models import ReviewBotTool
 from reviewbotext.resources import review_bot_review_resource, \
                                    review_bot_tool_resource
-
+import logging
 
 class ReviewBotExtension(Extension):
     """An extension for communicating with Review Bot"""
@@ -59,22 +62,30 @@ class ReviewBotExtension(Extension):
             'session': self._login_user(self.settings['user']),
             'url': self._rb_url(),
         }
+        review_request_id = request_payload['review_request_id']
+        review_request = ReviewRequest.objects.get(pk=review_request_id)
+        review_request_summary = review_request.summary
         tools = ReviewBotTool.objects.filter(enabled=True,
                                              run_automatically=True)
 
-        for tool in tools:
-            review_settings['ship_it'] = tool.ship_it
-            review_settings['comment_unmodified'] = tool.comment_unmodified
-            review_settings['open_issues'] = tool.open_issues
-            payload['review_settings'] = review_settings
 
-            try:
-                self.celery.send_task(
-                    "reviewbot.tasks.ProcessReviewRequest",
-                    [payload, tool.tool_settings],
-                    queue='%s.%s' % (tool.entry_point, tool.version))
-            except:
-                raise
+        for tool in tools:
+            if (tool.reviews_to_skip and
+                 re.match(tool.reviews_to_skip, review_request_summary)):
+                logging.debug("Skipping tool %s" % tool)
+            else:
+                review_settings['ship_it'] = tool.ship_it
+                review_settings['comment_unmodified'] = tool.comment_unmodified
+                review_settings['open_issues'] = tool.open_issues
+                payload['review_settings'] = review_settings
+
+                try:
+                    self.celery.send_task(
+                        "reviewbot.tasks.ProcessReviewRequest",
+                        [payload, tool.tool_settings],
+                        queue='%s.%s' % (tool.entry_point, tool.version))
+                except:
+                    raise
 
     def _login_user(self, user_id):
         """
