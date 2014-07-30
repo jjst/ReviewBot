@@ -51,6 +51,7 @@ class ReviewBotToolAdmin(admin.ModelAdmin):
         ('Execution Settings', {
             'fields': (
                 'run_automatically',
+                'reviews_to_skip',
                 'allow_run_manually',
             ),
             'classes': ('wide',),
